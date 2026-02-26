@@ -10,7 +10,46 @@ from pypdf import PdfReader
 
 from google import genai
 from google.genai.types import GenerateContentConfig
+import streamlit as st
+import hmac
 
+def check_password() -> bool:
+    """Returns True if the user is authenticated."""
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    # Already logged in
+    if st.session_state.authenticated:
+        return True
+
+    # Read secrets
+    try:
+        correct_user = st.secrets["auth"]["username"]
+        correct_pass = st.secrets["auth"]["password"]
+    except Exception:
+        st.error("Auth secrets not configured. Set [auth].username and [auth].password in secrets.")
+        return False
+
+    st.title("Login")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Sign in"):
+        user_ok = hmac.compare_digest(username, correct_user)
+        pass_ok = hmac.compare_digest(password, correct_pass)
+
+        if user_ok and pass_ok:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect username or password")
+
+    return False
+
+# Gate the app
+if not check_password():
+    st.stop()
 # -----------------------------
 # Questions + batching
 # -----------------------------
