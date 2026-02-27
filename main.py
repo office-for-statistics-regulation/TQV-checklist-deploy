@@ -12,7 +12,6 @@ from google import genai
 from google.genai.types import GenerateContentConfig
 import streamlit as st
 import hmac
-st.write("Secrets keys:", list(st.secrets.keys()))
 
 def check_password() -> bool:
     """Returns True if the user is authenticated."""
