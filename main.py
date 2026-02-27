@@ -12,6 +12,7 @@ from google import genai
 from google.genai.types import GenerateContentConfig
 import streamlit as st
 import hmac
+st.write("Secrets keys:", list(st.secrets.keys()))
 
 def check_password() -> bool:
     """Returns True if the user is authenticated."""
@@ -50,6 +51,37 @@ def check_password() -> bool:
 # Gate the app
 if not check_password():
     st.stop()
+
+import os
+import json
+import tempfile
+import streamlit as st
+
+def configure_vertex_adc_from_secrets() -> None:
+    """
+    Streamlit Cloud doesn't provide ADC by default.
+    We create a temporary service-account JSON file and point ADC to it.
+    """
+    gcp = st.secrets.get("gcp", None)
+    if not gcp:
+        raise RuntimeError("Missing [gcp] section in Streamlit secrets.")
+
+    project_id = gcp.get("project_id")
+    location = gcp.get("location")
+    sa_json_str = gcp.get("service_account_json")
+
+    if not project_id or not location or not sa_json_str:
+        raise RuntimeError("Secrets must include gcp.project_id, gcp.location, gcp.service_account_json")
+
+    # Write SA JSON to a temp file (ephemeral on Streamlit Cloud)
+    sa = json.loads(sa_json_str)
+    fd, path = tempfile.mkstemp(suffix=".json")
+    with os.fdopen(fd, "w") as f:
+        json.dump(sa, f)
+
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = path
+    os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+    os.environ["GOOGLE_CLOUD_REGION"] = location
 # -----------------------------
 # Questions + batching
 # -----------------------------
@@ -120,9 +152,13 @@ def chunked(seq: List[str], size: int):
         yield seq[i : i + size]
 
 
-def build_client() -> genai.Client:
-    return genai.Client(vertexai=True)
+from google import genai
 
+def build_client() -> genai.Client:
+    configure_vertex_adc_from_secrets()
+    return genai.Client(
+        vertexai=True,
+    )
 
 # -----------------------------
 # PDF detection + extraction
